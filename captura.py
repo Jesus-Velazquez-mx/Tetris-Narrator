@@ -56,7 +56,7 @@ class ModuloCaptura:
 # Prueba del módulo de captura (Solo se ejecuta si corres este archivo directamente)
 if __name__ == "__main__":
     # Instanciamos la clase
-    capturador = ModuloCaptura(ruta_video="C:\\Users\\jesu1\\Videos\\2026-05-14 14-06-00.mp4", intervalo_segundos=0.5)
+    capturador = ModuloCaptura(ruta_video="C:\\Users\\jesu1\\Videos\\test.mp4", intervalo_segundos=0.5)
     
     # Ejecutamos el método
     lista_de_imagenes = capturador.extraer_frames()
