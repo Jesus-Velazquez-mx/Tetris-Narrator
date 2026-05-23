@@ -67,7 +67,7 @@ class narracion:
 
         print("Configurando conexión a Hugging Face API para el comentarista...")
         self.api_url = "https://api-inference.huggingface.co/models/Groq/Llama-3-Groq-8B-Tool-Use/v1/chat/completions"
-        hf_token = os.environ.get("HF_TOKEN", "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")
+        hf_token = os.environ.get("HF_TOKEN", "Token Aqui")
         self.headers = {
             "Authorization": f"Bearer {hf_token}",
             "Content-Type": "application/json"
