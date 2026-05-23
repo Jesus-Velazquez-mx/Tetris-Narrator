@@ -3,16 +3,24 @@ from PIL import Image
 import easyocr
 import numpy as np
 import re
+import torch
 
 class ModuloVision:
     def __init__(self):
+        # 2. Detectamos automáticamente si hay una GPU NVIDIA disponible
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        print(f"--- Sistema de Visión iniciando en: {self.device.upper()} ---")
+
         print("Cargando modelo BLIP localmente (Vía clases nativas)...")
         self.processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-base")
-        self.model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-base")
+        # 3. Enviamos el modelo BLIP a la memoria de la GPU (.to(device))
+        self.model = BlipForConditionalGeneration.from_pretrained("Salesforce/blip-image-captioning-base").to(self.device)
         print("¡Modelo BLIP cargado!")
 
         print("Cargando lector OCR...")
-        self.lector_ocr = easyocr.Reader(['en'], gpu=False) 
+        # 4. Enlazamos EasyOCR a tu GPU dinámicamente
+        usar_gpu = True if self.device == "cuda" else False
+        self.lector_ocr = easyocr.Reader(['en'], gpu=usar_gpu) 
         print("¡Lector OCR listo para analizar!")
 
     def extraer_numeros(self, texto_leido):
@@ -34,12 +42,11 @@ class ModuloVision:
         try:
             imagen = Image.open(ruta_imagen).convert('RGB')
             
-# --- PARTE A: LA "VIBRA" CON BLIP ---
-            # Forzamos al modelo a entender que está viendo un juego
+            # --- PARTE A: LA "VIBRA" CON BLIP ---
             texto_guia = "a game of Tetris showing"
             
-            # Pasamos la imagen Y el texto guía al procesador
-            inputs = self.processor(imagen, text=texto_guia, return_tensors="pt")
+            # 5. ¡IMPORTANTE! Las imágenes también deben enviarse a la GPU para ser procesadas
+            inputs = self.processor(imagen, text=texto_guia, return_tensors="pt").to(self.device)
             
             out = self.model.generate(
                 **inputs, 
@@ -53,7 +60,7 @@ class ModuloVision:
             # 1. Recorte del SPEED LV (Bajamos de 740->790 a 760->810)
             coordenadas_speed = (652, 790, 701, 832) 
             recorte_speed = imagen.crop(coordenadas_speed)
-            recorte_speed.show()
+            #recorte_speed.show()
             
             texto_speed_crudo = self.lector_ocr.readtext(np.array(recorte_speed), detail=0)
             speed_final = self.extraer_numeros(texto_speed_crudo)
@@ -61,7 +68,7 @@ class ModuloVision:
             # 2. Recorte de las LINES (Bajamos de 840->890 a 860->910)
             coordenadas_lines = (642, 894, 702, 942) 
             recorte_lines = imagen.crop(coordenadas_lines)
-            recorte_lines.show()
+            #recorte_lines.show()
             
             texto_lines_crudo = self.lector_ocr.readtext(np.array(recorte_lines), detail=0)
             lines_final = self.extraer_numeros(texto_lines_crudo)
@@ -69,7 +76,7 @@ class ModuloVision:
             # 3. Recorte del SCORE (Bajamos de 750->810 a 770->830)
             coordenadas_score = (1227, 789, 1425, 872) 
             recorte_score = imagen.crop(coordenadas_score)
-            recorte_score.show()
+            #recorte_score.show()
             
             texto_score_crudo = self.lector_ocr.readtext(np.array(recorte_score), detail=0)
             score_final = self.extraer_numeros(texto_score_crudo)
@@ -77,7 +84,7 @@ class ModuloVision:
             # 4. NUEVO: Recorte de EVENTOS ESPECIALES (Lado izquierdo, zona central)
             coordenadas_evento = (436, 312, 698, 570) 
             recorte_evento = imagen.crop(coordenadas_evento)
-            recorte_evento.show() # Quita el '#' si necesitas ajustar esta nueva caja
+            #recorte_evento.show() # Quita el '#' si necesitas ajustar esta nueva caja
             
             texto_evento_crudo = self.lector_ocr.readtext(np.array(recorte_evento), detail=0)
             # Unimos todo el texto y lo pasamos a mayúsculas para buscar coincidencias
