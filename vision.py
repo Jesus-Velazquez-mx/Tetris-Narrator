@@ -58,7 +58,7 @@ class ModuloVision:
 # --- PARTE B: LECTURA DE DATOS CON OCR ---
             
             # 1. Recorte del SPEED LV (Bajamos de 740->790 a 760->810)
-            coordenadas_speed = (652, 790, 701, 832) 
+            coordenadas_speed = (650, 790, 705, 832) 
             recorte_speed = imagen.crop(coordenadas_speed)
             #recorte_speed.show()
             
@@ -66,7 +66,7 @@ class ModuloVision:
             speed_final = self.extraer_numeros(texto_speed_crudo)
 
             # 2. Recorte de las LINES (Bajamos de 840->890 a 860->910)
-            coordenadas_lines = (642, 894, 702, 942) 
+            coordenadas_lines = (640, 893, 707, 942) 
             recorte_lines = imagen.crop(coordenadas_lines)
             #recorte_lines.show()
             
@@ -74,7 +74,7 @@ class ModuloVision:
             lines_final = self.extraer_numeros(texto_lines_crudo)
 
             # 3. Recorte del SCORE (Bajamos de 750->810 a 770->830)
-            coordenadas_score = (1227, 789, 1425, 872) 
+            coordenadas_score = (1227, 785, 1425, 838) 
             recorte_score = imagen.crop(coordenadas_score)
             #recorte_score.show()
             

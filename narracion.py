@@ -1,7 +1,6 @@
 ﻿import os
 import json
 import random
-import requests
 import cv2
 import torch
 import numpy as np
@@ -12,6 +11,8 @@ from transformers import (
     AutoModelForImageTextToText,
     AutoProcessor
 )
+
+from huggingface_hub import InferenceClient
 
 from vision import ModuloVision
 
@@ -62,16 +63,16 @@ class narracion:
         self.vision = ModuloVision()
 
         # =====================================================
-        # MEMORIA NARRATIVA Y CONEXIÓN LLM
+        # CONEXIÓN LLM (HUGGING FACE SDK)
         # =====================================================
 
-        print("Configurando conexión a Hugging Face API para el comentarista...")
-        self.api_url = "https://api-inference.huggingface.co/models/Groq/Llama-3-Groq-8B-Tool-Use/v1/chat/completions"
-        hf_token = os.environ.get("HF_TOKEN", "Token Aqui")
-        self.headers = {
-            "Authorization": f"Bearer {hf_token}",
-            "Content-Type": "application/json"
-        }
+        print("Configurando cliente oficial de Hugging Face SDK para el comentarista...")
+        
+        # Se extrae el token directamente como lo tenías en tu entorno
+        hf_token = os.environ.get("HF_TOKEN", "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")
+        
+        # Inicializamos el cliente nativo (esto evade los bloqueos de red de requests)
+        self.cliente_hf = InferenceClient(token=hf_token)
 
         self.estado_narrativo = {
             "ultimo_evento": None,
@@ -171,11 +172,13 @@ Respond in ONE short sentence.
             return salida.lower()
 
         except Exception as e:
+
             print(f"Error VLM: {e}")
+
             return ""
 
     # =====================================================
-    # GENERAR COMENTARIO (CON LLM Llama-3)
+    # GENERAR COMENTARIO (CON HUGGING FACE SDK)
     # =====================================================
 
     def generar_comentario(
@@ -188,9 +191,10 @@ Respond in ONE short sentence.
         danger="LOW",
         back_to_back=False
     ):
-        print("Generando comentario dinámico con LLM...")
+        import random 
+        
+        print("Generando comentario dinámico con Hugging Face SDK...")
 
-        # Construimos el contexto exacto de lo que está pasando
         contexto_juego = f"""
         - Current Speed Level: {speed_lv}
         - Lines Cleared: {lines}
@@ -204,55 +208,76 @@ Respond in ONE short sentence.
         if back_to_back:
             contexto_juego += f"\n- BACK-TO-BACK BONUS IS ACTIVE!"
 
-        # Historial para evitar que repita lo último que dijo
         historial_str = "\n".join(f"- {c}" for c in self.historial[-3:]) if self.historial else "None"
 
+        # --- EL TRUCO: PRIORIDAD DE EVENTOS SOBRE RELLENO ---
+        if evento or back_to_back:
+            elementos_evento = []
+            if evento: elementos_evento.append(str(evento).replace("T-SPIN", "Tee Spin"))
+            if back_to_back: elementos_evento.append("Back to Back")
+            
+            nombres_eventos = " and ".join(elementos_evento)
+            
+            # NUEVO: Forzamos a la IA a reaccionar al evento desde ángulos totalmente distintos
+            enfoques_evento = [
+                f"the raw hype and adrenaline of that {nombres_eventos}",
+                f"how that {nombres_eventos} completely shifts the game's momentum",
+                f"the strategic brilliance of executing that {nombres_eventos}",
+                f"a calm, classy acknowledgment of the {nombres_eventos}"
+            ]
+            tema_elegido = random.choice(enfoques_evento)
+        else:
+            # Si no hay evento, usamos los tópicos aleatorios de relleno
+            topicos = [
+                "the geometry and shape of the block structure",
+                "the tension and survival strategy",
+                "the visual colors of the board",
+                "the pacing and momentum of the drops",
+                "the anticipation of what piece comes next"
+            ]
+            tema_elegido = random.choice(topicos)
+
         system_prompt = """
-        You are an incredibly energetic, professional hype-caster for a world championship Tetris match. 
-        Your job is to read the game state and output an exciting, highly specific play-by-play commentary paragraph.
+        You are a stylish and observant commentator for a Tetris match. You speak with a calm, elegant confidence using SIMPLE, EVERYDAY WORDS.
         
         STRICT RULES:
-        1. Write AT LEAST 2 to 3 sentences. Make it long, emotional and descriptive.
-        2. Mention specific numbers (like the score, lines, or speed level) to sound analytical.
-        3. React to the 'Visual description' provided by the VLM.
-        4. If a MAJOR EVENT (Tetris, T-Spin) or HIGH DANGER is happening, HYPE IT UP!
-        5. DO NOT repeat phrases from the recent history.
+        1. FORMAT: Write exactly 1 short sentence. Maximum 25 words.
+        2. THE NO-NUMBER RULE (CRITICAL): YOU MUST NEVER USE NUMBERS. Do not read scores, lines, or speed levels.
+        3. MANDATORY TERMINOLOGY: If the game state mentions an event, YOU MUST INCLUDE the exact words (like "Tetris", "Tee Spin", or "Back to Back"). CRITICAL: Integrate them fluidly into your unique sentence.
+        4. PLAYER IDENTITY: Refer to the human as "the player" or focus directly on the board.
+        5. AVOID REPETITION: Check the RECENT HISTORY. Your new sentence MUST NOT use the same verbs, adjectives, or structure as the previous comments.
         """
 
-        user_prompt = f"CURRENT GAME STATE:\n{contexto_juego}\n\nRECENT HISTORY (Do not repeat these):\n{historial_str}\n\nGenerate your commentary now:"
+        user_prompt = f"CURRENT GAME STATE:\n{contexto_juego}\n\nRECENT HISTORY:\n{historial_str}\n\nCRITICAL INSTRUCTION: Focus your comment EXCLUSIVELY on {tema_elegido}.\n\nGenerate your NEW, UNIQUE short commentary now:"
 
-        payload = {
-            "model": "Groq/Llama-3-Groq-8B-Tool-Use",
-            "messages": [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt}
-            ],
-            "max_tokens": 150,
-            "temperature": 0.8
-        }
+        mensajes = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
 
         try:
-            respuesta = requests.post(self.api_url, headers=self.headers, json=payload)
+            respuesta = self.cliente_hf.chat_completion(
+                model="Qwen/Qwen2.5-7B-Instruct",
+                messages=mensajes,
+                max_tokens=22,
+                temperature=0.7,      # Ligeramente más bajo para que respete la terminología exacta
+                frequency_penalty=1.5 
+            )
             
-            if respuesta.status_code == 200:
-                datos = respuesta.json()
-                comentario = datos["choices"][0]["message"]["content"].strip()
-                comentario = comentario.replace('"', "")
+            comentario = respuesta.choices[0].message.content.strip().replace('"', "")
 
-                self.historial.append(comentario)
-                if len(self.historial) > 10:
-                    self.historial.pop(0)
+            self.historial.append(comentario)
+            if len(self.historial) > 10:
+                self.historial.pop(0)
 
-                return comentario
-            else:
-                print(f"Error API: {respuesta.status_code} - {respuesta.text}")
-                return "The board is moving so fast! Let's see what happens next!"
+            return comentario
+            
         except Exception as e:
-            print(f"Error en la petición: {e}")
-            return "The pressure is immense, let's see how the player handles this!"
+            print(f"Error en Hugging Face SDK: {e}")
+            return "The game continues with intense pressure."
 
     # =====================================================
-    # GENERAR COMENTARIOS PARA CARPETA (HEURÍSTICA ORIGINAL)
+    # GENERAR COMENTARIOS PARA CARPETA
     # =====================================================
 
     def generar_comentarios_para_frames(

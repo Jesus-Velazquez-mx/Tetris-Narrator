@@ -3,254 +3,229 @@ import os
 import shutil
 import tempfile
 import time
+from moviepy.editor import VideoFileClip, AudioFileClip, CompositeAudioClip
 
-# Importamos las clases de tus módulos
 from captura import ModuloCaptura
 from vision import ModuloVision
 from narracion import narracion
+from audio import ModuloAudio
 
-# 1. Configuración de la página
 st.set_page_config(page_title="IA Narrador de Tetris", layout="wide")
 
-# 2. Cargar modelos en caché para que no se reinicien en cada clic
 @st.cache_resource
 def cargar_modelos():
     vision = ModuloVision()
     narrador = narracion()
-    return vision, narrador
+    voz = ModuloAudio()
+    return vision, narrador, voz
 
 st.title("🎮 Narrador IA de Tetris")
-st.markdown("Sube un clip de Tetris y observa cómo la IA comenta la jugada en base a Visión y OCR.")
+st.markdown("Sube un clip de Tetris y observa cómo la IA comenta la jugada generando un video narrado final.")
 
-# Inicializamos los modelos mostrando un mensaje de carga en la pantalla
 with st.spinner("Cargando modelos de IA en memoria (esto puede tomar un momento)..."):
-    vision, narrador = cargar_modelos()
+    vision, narrador, voz = cargar_modelos()
 
-# 3. Interfaz de subida de video
 archivo_video = st.file_uploader("Sube tu video de Tetris (.mp4)", type=["mp4"])
 
 if archivo_video is not None:
-    # Dividimos la pantalla en dos columnas
     col_video, col_comentarios = st.columns([1, 1])
     
     with col_video:
         st.subheader("Video Original")
-        # Reproductor nativo de Streamlit
         st.video(archivo_video)
         
     with col_comentarios:
         st.subheader("Comentarios en Vivo")
-        # Contenedor vacío donde iremos imprimiendo los comentarios
         caja_comentarios = st.container()
 
-        # ==========================================
-    # 🛠️ PANEL DE DEBUG
-    # ==========================================
-    st.markdown("---")
-    st.subheader("🛠️ Panel de Debug")
-    st.caption("Prueba cada módulo de forma individual.")
-    
-    col_btn1, col_btn2, col_btn3 = st.columns(3)
-    
-    with col_btn1:
-        btn_debug_captura = st.button("📸 Probar Captura", use_container_width=True)
-    with col_btn2:
-        btn_debug_vision = st.button("👁️ Probar Visión", use_container_width=True)
-    with col_btn3:
-        btn_debug_narracion = st.button("🗣️ Probar Narración", use_container_width=True)
-
-    # ------------------------------------------
-    # LÓGICA DE DEBUG: MÓDULO DE CAPTURA
-    # ------------------------------------------
-    if btn_debug_captura:
-        carpeta_debug = "frames_debug"
-        
-        # Guardamos el video temporal
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp_video:
-            tmp_video.write(archivo_video.read())
-            ruta_tmp_video = tmp_video.name
-            
-        try:
-            with st.spinner("Ejecutando ModuloCaptura..."):
-                capturador_debug = ModuloCaptura(ruta_video=ruta_tmp_video, carpeta_salida=carpeta_debug, intervalo_segundos=1.0)
-                rutas_frames_debug = capturador_debug.extraer_frames()
-                
-            if rutas_frames_debug:
-                st.success(f"¡Captura exitosa! Se extrajeron {len(rutas_frames_debug)} frames en total.")
-                
-                # Mostramos los primeros 3 frames como prueba visual
-                st.write("**Muestra de los primeros 3 frames:**")
-                cols_muestras = st.columns(min(3, len(rutas_frames_debug)))
-                for i, col_img in enumerate(cols_muestras):
-                    col_img.image(rutas_frames_debug[i], caption=f"Frame {i+1}", use_container_width=True)
-            else:
-                st.error("El módulo se ejecutó, pero no devolvió ningún frame.")
-                
-        except Exception as e:
-            st.error(f"Error en el módulo de captura: {e}")
-            
-        finally:
-            # Limpieza del debug
-            if os.path.exists(carpeta_debug):
-                shutil.rmtree(carpeta_debug)
-            if os.path.exists(ruta_tmp_video):
-                os.remove(ruta_tmp_video)
-
-    # ------------------------------------------
-    # (Aquí iría después la lógica de Visión y Narración)
-    # ------------------------------------------
-# ------------------------------------------
-    # LÓGICA DE DEBUG: MÓDULO DE VISIÓN
-    # ------------------------------------------
-    if btn_debug_vision:
-        if archivo_video is None:
-            st.warning("⚠️ Por favor, sube un video primero para extraer un frame de prueba.")
-        else:
-            carpeta_debug_vision = "frame_debug_vision"
-            
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp_video:
-                tmp_video.write(archivo_video.read())
-                ruta_tmp_video = tmp_video.name
-                
-            try:
-                with st.spinner("Extrayendo 1 frame y ejecutando BLIP/OCR (esto tomará unos segundos)..."):
-                    import cv2
-                    if not os.path.exists(carpeta_debug_vision):
-                        os.makedirs(carpeta_debug_vision)
-                    
-                    ruta_frame_prueba = os.path.join(carpeta_debug_vision, "frame_prueba.jpg")
-                    
-                    # Extraemos rápido solo el primer frame usando OpenCV
-                    cap = cv2.VideoCapture(ruta_tmp_video)
-                    ret, frame = cap.read()
-                    cap.release()
-                    
-                    if ret:
-                        cv2.imwrite(ruta_frame_prueba, frame)
-                        
-                        # Mostramos el frame en la interfaz web
-                        st.markdown("**Frame analizado:**")
-                        st.image(ruta_frame_prueba, width=500)
-                        
-                        # Mandamos llamar a tu módulo
-                        resultados = vision.clasificar_imagen(ruta_frame_prueba)
-                        
-                        if resultados:
-                            st.success("¡Análisis visual completado con éxito!")
-                            # st.json crea una tarjeta muy visual para leer diccionarios en Streamlit
-                            st.json(resultados) 
-                        else:
-                            st.error("El modelo no devolvió datos.")
-                    else:
-                        st.error("No se pudo extraer el frame del video.")
-            except Exception as e:
-                st.error(f"Error en el módulo de visión: {e}")
-            finally:
-                # Limpiamos todo al terminar
-                if os.path.exists(carpeta_debug_vision):
-                    shutil.rmtree(carpeta_debug_vision)
-                if os.path.exists(ruta_tmp_video):
-                    os.remove(ruta_tmp_video)
-        
-  # ------------------------------------------
-    # LÓGICA DE DEBUG: MÓDULO DE NARRACIÓN
-    # ------------------------------------------
-    if btn_debug_narracion:
-        st.write("Generando un comentario de prueba con datos simulados...")
-        try:
-            with st.spinner("Creando narrativa..."):
-                # Simulamos un escenario de alta tensión para ver cómo reacciona el narrador
-                comentario_prueba = narrador.generar_comentario(
-                    descripcion_vision="A Tetris board with a very high stack, close to top out.",
-                    speed_lv=15,
-                    lines=40,
-                    score=250000,
-                    evento="TETRIS",
-                    danger="HIGH",
-                    back_to_back=True
-                )
-                
-                if comentario_prueba:
-                    st.success("¡Módulo de narración ejecutado correctamente!")
-                    st.info(f"**Escenario simulado:** Nivel 15 | Peligro: ALTO | Evento: TETRIS (Back-to-Back)")
-                    st.markdown(f"🎙️ **Narrador dice:** _{comentario_prueba}_")
-                else:
-                    st.error("El módulo no devolvió ningún comentario.")
-        except Exception as e:
-            st.error(f"Error en el módulo de narración: {e}")
-
     st.markdown("---")
 
-    if st.button("Iniciar Procesamiento y Narración", type="primary"):
-        # Configuramos la carpeta que se creará y luego se borrará
+    if st.button("Iniciar Procesamiento, Narración y Renderizado", type="primary"):
         carpeta_trabajo = "frames_temporales_tetris"
+        rutas_audios_temporales = []
+        clips_de_audio_generados = []
         
-        # Streamlit guarda los archivos en memoria. Necesitamos un archivo físico temporal para OpenCV.
         with tempfile.NamedTemporaryFile(delete=False, suffix=".mp4") as tmp_video:
             tmp_video.write(archivo_video.read())
             ruta_tmp_video = tmp_video.name
         
         try:
-            with st.spinner("Extrayendo frames del video..."):
-                capturador = ModuloCaptura(ruta_video=ruta_tmp_video, carpeta_salida=carpeta_trabajo, intervalo_segundos=1.0)
+            with st.spinner("Paso 1: Extrayendo frames del video..."):
+                intervalo_frames = 1.0
+                capturador = ModuloCaptura(ruta_video=ruta_tmp_video, carpeta_salida=carpeta_trabajo, intervalo_segundos=intervalo_frames)
                 rutas_frames = capturador.extraer_frames()
             
-            if not rutas_frames:
-                st.error("No se pudieron extraer frames. Revisa el video.")
-            else:
+            if rutas_frames:
                 progreso_texto = st.empty()
                 barra_progreso = st.progress(0)
                 total_frames = len(rutas_frames)
-                transcripcion_final = []
                 
-                # Iteramos sobre cada imagen extraída
+                cooldown_hasta = 0.0
+                score_anterior = 0  
+                eventos_pendientes = []  
+                peligro_anterior = "LOW"  
+                ultimo_evento_visto = None
+                tiempo_ultimo_evento = -999.0
+                # --- NUEVO: Escudo protector de interrupciones ---
+                audio_es_intocable = False
+                
+                # Análisis de frames
                 for idx, ruta_frame in enumerate(rutas_frames):
-                    progreso_texto.text(f"Analizando frame {idx + 1} de {total_frames}...")
+                    tiempo_actual = idx * intervalo_frames
+                    progreso_texto.text(f"Paso 2: Analizando segundo {tiempo_actual} de {total_frames}...")
                     
-                    # A. Pasamos la imagen por el módulo de visión
                     datos_vision = vision.clasificar_imagen(ruta_frame)
                     
                     if datos_vision:
-                        # --- NUEVA LÓGICA DE HEURÍSTICA ---
-                        # Solo narramos si ocurre un evento, si hay peligro, o cada 6 segundos para rellenar
-                        hay_evento = datos_vision.get("evento") is not None
-                        hay_peligro = datos_vision.get("danger") == "HIGH" 
-                        relleno_tiempo = (idx % 6 == 0) 
+                        score_actual = datos_vision.get("score", 0)
+                        delta_score = score_actual - score_anterior
                         
-                        if hay_evento or hay_peligro or relleno_tiempo:
-                            # B. Pasamos los datos al LLM (ahora sí generará textos largos)
+                        # --- NUEVA LÓGICA DE MEMORIA DE EVENTOS (FILTRO ANTI-PARPADEO) ---
+                        evento_frame = datos_vision.get("evento")
+                        if evento_frame:
+                            # Si es el MISMO evento y pasaron menos de 4 segundos, es el texto viejo de la UI. ¡Lo ignoramos!
+                            if evento_frame == ultimo_evento_visto and (tiempo_actual - tiempo_ultimo_evento) < 4.0:
+                                pass 
+                            else:
+                                if not eventos_pendientes or eventos_pendientes[-1] != evento_frame:
+                                    eventos_pendientes.append(evento_frame)
+                                # Actualizamos la memoria absoluta para el filtro temporal
+                                ultimo_evento_visto = evento_frame
+                                tiempo_ultimo_evento = tiempo_actual
+                        
+                        hay_peligro = datos_vision.get("danger") == "HIGH" 
+                        hubo_puntos = delta_score >= 100  
+                        
+                        # CORRECCIÓN 2: Relleno ajustado a 15 segundos
+                        relleno_tiempo = (idx % 15 == 0) 
+                        
+                        # CORRECCIÓN 3: Detecta solo el "borde" del peligro (cuando pasa de LOW/MEDIUM a HIGH)
+                        peligro_nuevo = hay_peligro and peligro_anterior != "HIGH"
+                        
+                        es_suceso_importante = bool(eventos_pendientes) or peligro_nuevo
+                        es_suceso_menor = hubo_puntos or relleno_tiempo
+                        
+                        eventos_interrumpibles = ["TETRIS", "T-SPIN"] 
+                        hay_evento_critico = any(e in eventos_interrumpibles for e in eventos_pendientes)
+
+                        # Usamos peligro_nuevo en lugar de hay_peligro para no interrumpir constantemente
+                        debe_interrumpir = hay_evento_critico or peligro_nuevo
+
+                        hubo_interrupcion = False
+                        
+                        if debe_interrumpir and (tiempo_actual < cooldown_hasta):
+                            # REGLA DE ORO: Solo interrumpimos si el audio NO es intocable (es decir, es relleno)
+                            if not audio_es_intocable:
+                                if clips_de_audio_generados:
+                                    # Solo asomamos el clip (no le hacemos .pop() todavía)
+                                    clip_anterior = clips_de_audio_generados[-1] 
+                                    tiempo_hablado = round(tiempo_actual - clip_anterior.start, 2)
+                                    
+                                    # TIEMPO DE GRACIA: Obligamos a que la IA lleve hablando al menos 1.5 segundos
+                                    if tiempo_hablado >= 1.5: 
+                                        clip_anterior = clips_de_audio_generados.pop() # Ahora sí lo sacamos
+                                        fade_dur = min(0.2, tiempo_hablado / 2)
+                                        clip_recortado = clip_anterior.set_duration(tiempo_hablado).audio_fadeout(fade_dur)
+                                        clips_de_audio_generados.append(clip_recortado)
+                                        
+                                        # Liberamos el micrófono
+                                        cooldown_hasta = tiempo_actual
+                                        hubo_interrupcion = True
+
+                        # EVALUACIÓN: ¿Ocurrió algo Y el micrófono está libre?
+                        if (es_suceso_importante or es_suceso_menor) and (tiempo_actual >= cooldown_hasta):
+                            
+                            evento_final = None
+                            if eventos_pendientes:
+                                evento_final = " and ".join(eventos_pendientes)
+                                
                             comentario = narrador.generar_comentario(
                                 descripcion_vision=datos_vision["descripcion"],
                                 speed_lv=datos_vision.get("speed_lv", 1),
                                 lines=datos_vision.get("lines", 0),
-                                score=datos_vision.get("score", 0),
-                                evento=datos_vision.get("evento", None),
+                                score=score_actual,
+                                evento=evento_final, 
                                 back_to_back=datos_vision.get("back_to_back", False),
-                                danger="LOW" 
+                                danger=datos_vision.get("danger", "LOW") 
                             )
                             
-                            # C. Mostramos el resultado
-                            with caja_comentarios:
-                                st.markdown(f"**⏱️ 00:{idx:02d}** | 🎙️ _{comentario}_")
-                                transcripcion_final.append(f"00:{idx:02d} | {comentario}")
-                        else:
-                            # Si no pasa nada interesante, lo ignoramos y no saturamos la API
-                            print(f"Frame 00:{idx:02d} - Sin eventos, saltando narración...")
-                    
-                    # Actualizamos la barra de carga
+                            eventos_pendientes = []
+                            score_anterior = score_actual
+                            
+                            nombre_archivo_wav = f"temp_audio_{idx}.wav"
+                            ruta_audio = voz.generar_audio(comentario, nombre_archivo_wav)
+                            
+                            if ruta_audio:
+                                tiempo_formateado = time.strftime('%M:%S', time.gmtime(tiempo_actual))
+                                
+                                with caja_comentarios:
+                                    st.markdown(f"**⏱️ {tiempo_formateado}** | 🎙️ _{comentario}_")
+                                    st.audio(ruta_audio, format="audio/wav") 
+                                    rutas_audios_temporales.append(ruta_audio)
+                                
+                                tiempo_arranque = tiempo_actual + 0.3 if hubo_interrupcion else tiempo_actual
+                                
+                                clip = AudioFileClip(ruta_audio).set_start(tiempo_arranque)
+                                clips_de_audio_generados.append(clip)
+                                
+                                cooldown_hasta = tiempo_arranque + clip.duration
+
+                                audio_es_intocable = es_suceso_importante
+                                
+                        # Actualizamos el estado del peligro para el siguiente frame (CORRECCIÓN 3)
+                        peligro_anterior = datos_vision.get("danger", "LOW")
+                                    
                     barra_progreso.progress((idx + 1) / total_frames)
                 
-                progreso_texto.text("¡Procesamiento finalizado!")
-                st.success("Narración completada con éxito.")
+                progreso_texto.text("¡Análisis finalizado! Iniciando renderizado de video...")
+                
+                if clips_de_audio_generados:
+                    with st.spinner("🎬 Paso 3: Montando la transmisión final (Audio exclusivo IA)..."):
+                        video_original = VideoFileClip(ruta_tmp_video)
+                        
+                        base_silenciosa = video_original.audio.volumex(0.2) if video_original.audio else None
+                        
+                        if base_silenciosa:
+                            audio_final = CompositeAudioClip([base_silenciosa] + clips_de_audio_generados)
+                        else:
+                            audio_final = CompositeAudioClip(clips_de_audio_generados)
+                            
+                        video_narrado = video_original.set_audio(audio_final)
+                        ruta_video_salida = "video_final_esports.mp4"
+                        
+                        video_narrado.write_videofile(
+                            ruta_video_salida, 
+                            codec="libx264", 
+                            audio_codec="aac", 
+                            fps=24, 
+                            audio_fps=44100, 
+                            preset="ultrafast", 
+                            logger=None
+                        )                        
+                        video_original.close()
+                        video_narrado.close()
+                        
+                        st.success("✨ ¡Transmisión renderizada con éxito!")
+                        st.video(ruta_video_salida)
 
         except Exception as e:
             st.error(f"Ocurrió un error en la ejecución: {e}")
 
         finally:
-            # 4. Limpieza absoluta
             with st.spinner("Limpiando archivos temporales..."):
-                if os.path.exists(carpeta_trabajo):
-                    shutil.rmtree(carpeta_trabajo)
-                if os.path.exists(ruta_tmp_video):
-                    os.remove(ruta_tmp_video)
-            st.info("🧹 Sistema limpio: Se ha borrado la carpeta de imágenes y el video temporal.")
+                # CORRECCIÓN 1: Forzamos el cierre en memoria de todos los clips generados antes de borrarlos
+                for clip in clips_de_audio_generados:
+                    try:
+                        clip.close()
+                    except:
+                        pass
+                
+                if os.path.exists(carpeta_trabajo): shutil.rmtree(carpeta_trabajo)
+                if os.path.exists(ruta_tmp_video): os.remove(ruta_tmp_video)
+                for ruta_wav in rutas_audios_temporales:
+                    if os.path.exists(ruta_wav):
+                        try:
+                            os.remove(ruta_wav)
+                        except:
+                            pass 
+            st.info("🧹 Sistema limpio: Archivos temporales eliminados.")
