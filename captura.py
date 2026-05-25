@@ -1,11 +1,12 @@
+# ====== IMPORTS ======
 import cv2
 import os
 
 class ModuloCaptura:
+
+    # ====== INICIALIZAR ESTADO Y RUTAS ======
+    # Configura las rutas de video, carpetas de salida y crea directorios si no existen
     def __init__(self, ruta_video, carpeta_salida="frames_capturados", intervalo_segundos=1):
-        """
-        Inicializa el módulo de captura configurando las rutas y el intervalo.
-        """
         self.ruta_video = ruta_video
         self.carpeta_salida = carpeta_salida
         self.intervalo_segundos = intervalo_segundos
@@ -15,11 +16,11 @@ class ModuloCaptura:
             os.makedirs(self.carpeta_salida)
             print(f"Carpeta de salida lista: {self.carpeta_salida}")
 
+    # ====== EXTRACCIÓN DE FRAMES ======
+    # Procesa el video de entrada y extrae imágenes iterativamente según el intervalo
     def extraer_frames(self):
-        """
-        Procesa el video y guarda los frames. 
-        Retorna una lista con las rutas de los archivos guardados.
-        """
+        
+        #Retorna una lista con las rutas de los archivos guardados.
         cap = cv2.VideoCapture(self.ruta_video)
         
         if not cap.isOpened():
@@ -53,7 +54,9 @@ class ModuloCaptura:
         
         return rutas_frames
 
-# Prueba del módulo de captura (Solo se ejecuta si corres este archivo directamente)
+# =========================================================
+# MAIN
+# =========================================================
 if __name__ == "__main__":
     # Instanciamos la clase
     capturador = ModuloCaptura(ruta_video="C:\\Users\\jesu1\\Videos\\test.mp4", intervalo_segundos=0.5)

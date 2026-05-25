@@ -1,9 +1,13 @@
+# ====== IMPORTS ======
 import re
 import torch
 import scipy.io.wavfile
 from transformers import VitsModel, AutoTokenizer
 
 class ModuloAudio:
+
+    # ====== INICIALIZAR MODELO DE AUDIO ======
+    # Detecta entorno y carga el modelo VITS para Text-to-Speech
     def __init__(self):
         print("Configurando módulo de Text-to-Speech (Local VITS - MMS Inglés ultrarrápido)...")
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -16,6 +20,8 @@ class ModuloAudio:
         
         print(f"¡Modelo {modelo} cargado en memoria ({self.device})!")
 
+    # ====== GENERAR AUDIO (TTS) ======
+    # Pre-procesa el texto y genera un archivo de audio local usando VITS
     def generar_audio(self, texto, ruta_salida="comentario_temporal.wav"):
         try:
             # --- PRE-PROCESAMIENTO DE TEXTO VELOZ ---
@@ -40,6 +46,9 @@ class ModuloAudio:
             print(f"Error generando el audio TTS local: {repr(e)}")
             return None
 
+# =========================================================
+# MAIN
+# =========================================================
 if __name__ == "__main__":
     audio = ModuloAudio()
     texto_prueba = "Tetris again! And with back to back, it is over sixty thousand now!"
