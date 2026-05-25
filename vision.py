@@ -9,7 +9,7 @@ import torch
 class ModuloVision:
     
     # ====== INICIALIZACIÓN DE HARDWARE Y MODELOS ======
-    # Configura el entorno de ejecución (GPU/CPU) y carga los modelos de IA en memoria
+    # 1. Configurar el entorno de ejecución (GPU/CPU) y carga los modelos de IA en memoria
     def __init__(self):
         # 2. Detectamos automáticamente si hay una GPU NVIDIA disponible para acelerar el proceso
         self.device = "cuda" if torch.cuda.is_available() else "cpu"

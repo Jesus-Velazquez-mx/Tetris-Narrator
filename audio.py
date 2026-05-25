@@ -47,7 +47,7 @@ class ModuloAudio:
             return None
 
 # =========================================================
-# MAIN
+# PRUEBA DEL MÓDULO (MAIN)
 # =========================================================
 if __name__ == "__main__":
     audio = ModuloAudio()

@@ -55,7 +55,7 @@ class ModuloCaptura:
         return rutas_frames
 
 # =========================================================
-# MAIN
+# PRUEBA DEL MÓDULO (MAIN)
 # =========================================================
 if __name__ == "__main__":
     # Instanciamos la clase

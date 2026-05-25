@@ -517,7 +517,7 @@ Respond in ONE short sentence.
 
 
 # =========================================================
-# MAIN
+# PRUEBA DEL MÓDULO (MAIN)
 # =========================================================
 
 def generar_comentarios_desde_carpeta(
