@@ -1,4 +1,5 @@
-﻿import os
+﻿# ====== IMPORTS ======
+import os
 import json
 import random
 import cv2
@@ -20,7 +21,8 @@ from vision import ModuloVision
 class narracion:
 
     def __init__(self):
-
+        # ====== CARGAR MODELO VLM (SmolVLM) ======
+        # Detecta GPU y carga modelo de visión-lenguaje local
         print("Cargando SmolVLM...")
 
         self.device = (
@@ -54,26 +56,21 @@ class narracion:
 
         self.vlm.eval()
 
-        # =====================================================
-        # MODULO VISION
-        # =====================================================
-
+        # ====== CARGAR MÓDULO DE VISIÓN ======
+        # Usa OCR y BLIP para extraer score, nivel y eventos
         print("Cargando módulo de visión...")
 
         self.vision = ModuloVision()
 
-        # =====================================================
-        # CONEXIÓN LLM (HUGGING FACE SDK)
-        # =====================================================
-
+        # ====== CONEXIÓN A LLM (HUGGING FACE) ======
+        # Cliente para generar comentarios dinámicos en tiempo real
         print("Configurando cliente oficial de Hugging Face SDK para el comentarista...")
         
-        # Se extrae el token directamente como lo tenías en tu entorno
         hf_token = os.environ.get("HF_TOKEN", "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")
-        
-        # Inicializamos el cliente nativo (esto evade los bloqueos de red de requests)
         self.cliente_hf = InferenceClient(token=hf_token)
 
+        # ====== INICIALIZAR ESTADO Y MEMORIA ======
+        # Rastrear eventos, combos y evitar repetición en comentarios
         self.estado_narrativo = {
             "ultimo_evento": None,
             "racha_tetris": 0,
@@ -82,16 +79,14 @@ class narracion:
             "ultimo_peligro": "LOW"
         }
 
-        self.historial = []
-        self.combo = 0
-        self.ultimo_comentario_frame = -999
+        self.historial = []  # Últimos comentarios para evitar repetición
+        self.combo = 0  # Contador de eventos consecutivos
+        self.ultimo_comentario_frame = -999  # Cooldown entre comentarios
 
         print("¡Narrador listo!")
 
-    # =====================================================
-    # VLM
-    # =====================================================
-
+    # ====== ANÁLISIS CON MODELO VLM ======
+    # Describe el frame en una oración usando SmolVLM
     def analizar_frame_vlm(self, ruta_imagen):
 
         try:
@@ -151,6 +146,7 @@ Respond in ONE short sentence.
                 for k, v in inputs.items()
             }
 
+            # Generar texto del modelo
             with torch.no_grad():
 
                 generated_ids = (
@@ -177,10 +173,8 @@ Respond in ONE short sentence.
 
             return ""
 
-    # =====================================================
-    # GENERAR COMENTARIO (CON HUGGING FACE SDK)
-    # =====================================================
-
+    # ====== GENERAR COMENTARIO CON LLM ======
+    # Usa eventos y contexto para generar narración dinámica y única
     def generar_comentario(
         self,
         descripcion_vision,
@@ -195,6 +189,7 @@ Respond in ONE short sentence.
         
         print("Generando comentario dinámico con Hugging Face SDK...")
 
+        # Construir contexto con estado actual del juego
         contexto_juego = f"""
         - Current Speed Level: {speed_lv}
         - Lines Cleared: {lines}
@@ -210,7 +205,7 @@ Respond in ONE short sentence.
 
         historial_str = "\n".join(f"- {c}" for c in self.historial[-3:]) if self.historial else "None"
 
-        # --- EL TRUCO: PRIORIDAD DE EVENTOS SOBRE RELLENO ---
+        # Priorizar eventos sobre relleno: variar ángulo de comentario
         if evento or back_to_back:
             elementos_evento = []
             if evento: elementos_evento.append(str(evento).replace("T-SPIN", "Tee Spin"))
@@ -218,7 +213,7 @@ Respond in ONE short sentence.
             
             nombres_eventos = " and ".join(elementos_evento)
             
-            # NUEVO: Forzamos a la IA a reaccionar al evento desde ángulos totalmente distintos
+            # Múltiples perspectivas del mismo evento
             enfoques_evento = [
                 f"the raw hype and adrenaline of that {nombres_eventos}",
                 f"how that {nombres_eventos} completely shifts the game's momentum",
@@ -227,7 +222,7 @@ Respond in ONE short sentence.
             ]
             tema_elegido = random.choice(enfoques_evento)
         else:
-            # Si no hay evento, usamos los tópicos aleatorios de relleno
+            # Comentarios generales sin evento
             topicos = [
                 "the geometry and shape of the block structure",
                 "the tension and survival strategy",
@@ -256,16 +251,18 @@ Respond in ONE short sentence.
         ]
 
         try:
+            # Llamar a LLM con prompts optimizados para Tetris
             respuesta = self.cliente_hf.chat_completion(
                 model="Qwen/Qwen2.5-7B-Instruct",
                 messages=mensajes,
                 max_tokens=22,
-                temperature=0.7,      # Ligeramente más bajo para que respete la terminología exacta
-                frequency_penalty=1.5 
+                temperature=0.7,      # Control de creatividad
+                frequency_penalty=1.5  # Penalizar repetición
             )
             
             comentario = respuesta.choices[0].message.content.strip().replace('"', "")
 
+            # Guardar en historial para evitar repetición
             self.historial.append(comentario)
             if len(self.historial) > 10:
                 self.historial.pop(0)
@@ -276,10 +273,8 @@ Respond in ONE short sentence.
             print(f"Error en Hugging Face SDK: {e}")
             return "The game continues with intense pressure."
 
-    # =====================================================
-    # GENERAR COMENTARIOS PARA CARPETA
-    # =====================================================
-
+    # ====== PROCESAR TODOS LOS FRAMES ======
+    # Loop principal: analiza frames, detecta eventos y genera comentarios
     def generar_comentarios_para_frames(
         self,
         carpeta_frames,
@@ -288,6 +283,7 @@ Respond in ONE short sentence.
         output_json=None
     ):
 
+        # Cargar todas las imágenes de la carpeta
         rutas = sorted([
             os.path.join(carpeta_frames, f)
             for f in os.listdir(carpeta_frames)
@@ -307,35 +303,44 @@ Respond in ONE short sentence.
         comentarios = []
         estado_previo = None
 
+        # Procesar cada frame
         for idx, ruta in enumerate(rutas):
 
             print(f"Analizando frame {idx + 1}/{len(rutas)}")
 
+            # Procesar cada 5 frames para reducir carga
             if idx % 5 != 0:
                 continue
 
+            # Extraer datos: OCR, visión y descripción
             estado = self._extraer_estado_frame(ruta)
             evento = estado.get("evento_vision")
 
+            # Detectar evento si la visión no lo hizo
             if evento is None:
                 evento = self._detectar_evento(estado_previo, estado)
 
+            # Actualizar estado narrativo
             if evento:
                 self.estado_narrativo["ultimo_evento"] = evento
                 self.estado_narrativo["frames_sin_evento"] = 0
             else:
                 self.estado_narrativo["frames_sin_evento"] += 1
 
+            # Rastrear presión (cuántos frames consecutivos en HIGH)
             if estado["danger"] == "HIGH":
                 self.estado_narrativo["presion_consecutiva"] += 1
             else:
                 self.estado_narrativo["presion_consecutiva"] = 0
 
+            # Rastrear Tetris consecutivos
             if evento == "TETRIS":
                 self.estado_narrativo["racha_tetris"] += 1
             else:
                 self.estado_narrativo["racha_tetris"] = 0
 
+            # ====== CÁLCULO DE PRIORIDAD ======
+            # Determina si vale la pena generar comentario
             prioridad = 0
 
             if evento == "TETRIS":
@@ -353,9 +358,10 @@ Respond in ONE short sentence.
             if estado.get("back_to_back"):
                 prioridad += 5
 
-            if idx % 20 == 0:
+            if idx % 20 == 0:  # Comentario cada ~20 frames
                 prioridad += 5
 
+            # Recuperación de peligro alto
             if (
                 estado_previo
                 and estado_previo["danger"] == "HIGH"
@@ -364,6 +370,7 @@ Respond in ONE short sentence.
                 prioridad += 10
                 evento = "RECOVERY"
 
+            # Rastrear combo (eventos consecutivos)
             if evento in {
                 "LINE CLEAR",
                 "DOUBLE",
@@ -378,11 +385,13 @@ Respond in ONE short sentence.
             if self.combo >= 3:
                 prioridad += 5
 
+            # Detectar "hot streaks" (grandes aumentos de score)
             if estado_previo:
                 delta_score = estado["score"] - estado_previo["score"]
                 if delta_score > 3000:
                     prioridad += 6
 
+            # Cooldown: no comentar demasiado seguido
             cooldown_frames = 8
 
             if (idx - self.ultimo_comentario_frame < cooldown_frames):
@@ -430,12 +439,10 @@ Respond in ONE short sentence.
 
         return comentarios
 
-    # =====================================================
-    # EXTRAER ESTADO
-    # =====================================================
-
+    # ====== EXTRAER ESTADO DEL FRAME ======
+    # Obtiene score, nivel, líneas, peligro y descripción visual
     def _extraer_estado_frame(self, ruta_frame):
-
+        # Estado por defecto
         estado = {
             "level": 1,
             "lines": 0,
@@ -447,14 +454,14 @@ Respond in ONE short sentence.
         }
 
         imagen = cv2.imread(ruta_frame)
-
         if imagen is None:
             return estado
 
+        # Calcular peligro visual (brillo del tablero)
         estado["danger"] = self._calcular_peligro(imagen)
 
+        # Extraer OCR: score, nivel, líneas
         resultado_vision = self.vision.clasificar_imagen(ruta_frame)
-
         if resultado_vision:
             estado["level"] = resultado_vision["speed_lv"]
             estado["lines"] = resultado_vision["lines"]
@@ -465,21 +472,19 @@ Respond in ONE short sentence.
         else:
             descripcion_blip = ""
 
+        # Descripción visual con VLM
         descripcion_vlm = self.analizar_frame_vlm(ruta_frame)
-
         estado["descripcion"] = descripcion_vlm + " " + descripcion_blip
 
         return estado
 
-    # =====================================================
-    # EVENTOS Y PELIGRO
-    # =====================================================
-
+    # ====== DETECTAR EVENTOS (Cambios de estado) ======
+    # Compara frames anteriores y actuales
     def _detectar_evento(self, previo, actual):
-
         if previo is None:
             return None
 
+        # Comparar líneas despejadas
         delta_lines = actual["lines"] - previo["lines"]
         delta_score = actual["score"] - previo["score"]
 
@@ -491,21 +496,23 @@ Respond in ONE short sentence.
 
         return None
 
+    # ====== CALCULAR NIVEL DE PELIGRO ======
+    # Análisis visual del brillo del tablero
     def _calcular_peligro(self, imagen):
-
         alto, ancho = imagen.shape[:2]
 
+        # Extraer región del tablero
         tablero = imagen[
             int(alto * 0.18): int(alto * 0.82),
             int(ancho * 0.30): int(ancho * 0.55)
         ]
 
+        # Calcular brillo promedio (más blanco = más peligroso)
         gris = cv2.cvtColor(tablero, cv2.COLOR_BGR2GRAY)
         brillo = np.mean(gris)
 
         if brillo > 90: return "HIGH"
         if brillo > 60: return "MEDIUM"
-
         return "LOW"
 
 
