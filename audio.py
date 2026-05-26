@@ -24,7 +24,6 @@ class ModuloAudio:
     # Pre-procesa el texto y genera un archivo de audio local usando VITS
     def generar_audio(self, texto, ruta_salida="comentario_temporal.wav"):
         try:
-            # --- PRE-PROCESAMIENTO DE TEXTO VELOZ ---
             texto_limpio = texto.lower()
             texto_limpio = texto_limpio.replace("-", " ")
             texto_limpio = re.sub(r'[^a-z \.,\?\!\']', '', texto_limpio)

@@ -82,7 +82,6 @@ if archivo_video is not None:
                 peligro_anterior = "LOW"  
                 ultimo_evento_visto = None
                 tiempo_ultimo_evento = -999.0
-                # --- NUEVO: Escudo protector de interrupciones ---
                 # Evita que eventos de relleno sean cortados a la mitad
                 audio_es_intocable = False
                 
@@ -98,7 +97,6 @@ if archivo_video is not None:
                         score_actual = datos_vision.get("score", 0)
                         delta_score = score_actual - score_anterior
                         
-                        # --- NUEVA LÓGICA DE MEMORIA DE EVENTOS (FILTRO ANTI-PARPADEO) ---
                         # Evita que la IA repita el mismo evento si ocurre muy rápido (en menos de 4 segundos)
                         evento_frame = datos_vision.get("evento")
                         if evento_frame:
@@ -115,10 +113,10 @@ if archivo_video is not None:
                         hay_peligro = datos_vision.get("danger") == "HIGH" 
                         hubo_puntos = delta_score >= 100  
                         
-                        # CORRECCIÓN 2: Relleno ajustado a 15 segundos (Para que el comentarista no se quede callado mucho tiempo)
+                        # Relleno ajustado a 15 segundos (Para que el comentarista no se quede callado mucho tiempo)
                         relleno_tiempo = (idx % 15 == 0) 
                         
-                        # CORRECCIÓN 3: Detecta solo el "borde" del peligro (cuando pasa de LOW/MEDIUM a HIGH)
+                        # Detecta solo el "borde" del peligro (cuando pasa de LOW/MEDIUM a HIGH)
                         peligro_nuevo = hay_peligro and peligro_anterior != "HIGH"
                         
                         # Clasificación de la urgencia de lo que está pasando
@@ -135,14 +133,14 @@ if archivo_video is not None:
                         
                         # ====== LÓGICA DE INTERRUPCIÓN DEL COMENTARISTA ======
                         if debe_interrumpir and (tiempo_actual < cooldown_hasta):
-                            # REGLA DE ORO: Solo interrumpimos si el audio NO es intocable (es decir, es relleno)
+                            # Solo interrumpimos si el audio NO es intocable (es decir, es relleno)
                             if not audio_es_intocable:
                                 if clips_de_audio_generados:
                                     # Solo asomamos el clip (no le hacemos .pop() todavía)
                                     clip_anterior = clips_de_audio_generados[-1] 
                                     tiempo_hablado = round(tiempo_actual - clip_anterior.start, 2)
                                     
-                                    # TIEMPO DE GRACIA: Obligamos a que la IA lleve hablando al menos 1.5 segundos antes de cortarla
+                                    # Obligamos a que la IA lleve hablando al menos 1.5 segundos antes de cortarla
                                     if tiempo_hablado >= 1.5: 
                                         clip_anterior = clips_de_audio_generados.pop() # Ahora sí lo sacamos
                                         fade_dur = min(0.2, tiempo_hablado / 2) # Aplicamos un desvanecimiento suave (fade out)
@@ -154,7 +152,7 @@ if archivo_video is not None:
                                         hubo_interrupcion = True
 
                         # ====== GENERACIÓN DE GUION Y VOZ ======
-                        # EVALUACIÓN: ¿Ocurrió algo Y el micrófono está libre?
+                        # ¿Ocurrió algo Y el micrófono está libre?
                         if (es_suceso_importante or es_suceso_menor) and (tiempo_actual >= cooldown_hasta):
                             
                             evento_final = None
@@ -249,7 +247,7 @@ if archivo_video is not None:
         # El bloque 'finally' asegura que, pase lo que pase (incluso si hay errores), los archivos basura se borren
         finally:
             with st.spinner("Limpiando archivos temporales..."):
-                # CORRECCIÓN 1: Forzamos el cierre en memoria de todos los clips generados antes de borrarlos para evitar errores de archivo en uso
+                # Forzamos el cierre en memoria de todos los clips generados antes de borrarlos para evitar errores de archivo en uso
                 for clip in clips_de_audio_generados:
                     try:
                         clip.close()
